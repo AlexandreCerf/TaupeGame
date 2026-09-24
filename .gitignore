@@ -1,0 +1,31 @@
+# Dependances npm
+node_modules/
+
+# Base SQLite locale (creee au lancement du serveur)
+data/
+
+# Logs
+npm-debug.log*
+*.log
+
+# Sorties de build .NET (aucune source dans le projet)
+backend/bin/
+backend/obj/
+.vs/
+
+# Caches Sass
+.sass-cache/
+
+# Ancienne archive du dossier play/ (contient une cle API Mantle)
+play.zip
+
+# Variables d'environnement
+.env
+.env.*
+
+# Systeme et editeurs
+.DS_Store
+Thumbs.db
+__MACOSX/
+.vscode/
+.idea/
