@@ -26,6 +26,7 @@ db.prepare(`
     player TEXT NOT NULL,
     score INTEGER NOT NULL,
     circle_time TEXT NOT NULL,
+    level_id TEXT NOT NULL DEFAULT 'default',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )
 `).run();
@@ -37,7 +38,7 @@ app.get('/api/health', (_req, res) => {
 
 app.post('/api/scores', (req, res) => {
   try {
-    const { player, score, circleTime } = req.body || {};
+    const { player, score, circleTime, levelId } = req.body || {};
     if (typeof player !== 'string' || player.trim() === '') {
       return res.status(400).json({ error: 'player is required' });
     }
@@ -48,10 +49,12 @@ app.post('/api/scores', (req, res) => {
     let ct = Array.isArray(circleTime) ? circleTime : [];
     // sanitize to numbers
     ct = ct.map(x => Number(x)).filter(x => Number.isFinite(x));
+    // Niveau sur lequel le score a ete fait ("default" pour une partie normale)
+    const level = typeof levelId === 'string' && levelId.trim() !== '' ? levelId.trim() : 'default';
     const insert = db.prepare(
-      'INSERT INTO scores (player, score, circle_time) VALUES (?, ?, ?)'
+      'INSERT INTO scores (player, score, circle_time, level_id) VALUES (?, ?, ?, ?)'
     );
-    const info = insert.run(player.trim(), Math.floor(numericScore), JSON.stringify(ct));
+    const info = insert.run(player.trim(), Math.floor(numericScore), JSON.stringify(ct), level);
     const row = db.prepare('SELECT id, player, score, circle_time AS circleTime, created_at AS createdAt FROM scores WHERE id = ?').get(info.lastInsertRowid);
     row.circleTime = JSON.parse(row.circleTime || '[]');
     return res.status(201).json(row);

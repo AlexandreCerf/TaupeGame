@@ -114,13 +114,28 @@
 					<h1 class="gm-menu-title">Whack-a-Mole</h1>
 					<h2 class="gm-menu-subtitle">Every Tap Matters</h2>
 				</div>
-				<!-- MetaMask : adresse du joueur ou bouton de connexion -->
+				<!-- Wallet : adresse du joueur ou bouton de connexion -->
 				<h2 id="walletStatus" class="gm-menu-subtitle">Not connected</h2>
-				<button id="connectWalletBtn" class="gm-btn btn-blue" type="button" name="button">Connect MetaMask</button>
+				<button id="connectWalletBtn" class="gm-btn btn-blue" type="button" name="button">Connect wallet</button>
 				<button id="newGameBtn" class="gm-btn btn-blue" type="button" name="button">New Game</button>
+				<button id="customLevelBtn" class="gm-btn" type="button" name="button">Custom Level</button>
 				<button id="highScoresBtn" class="gm-btn" type="button" name="button">High Scores</button>
 				<!-- Score Validator removed -->
 				<button id="aboutBtn" class="gm-btn" type="button" name="button">About</button>
+			</div>
+		</div>
+
+		<!-- CUSTOM LEVEL PAGE : demarrer une partie sur un niveau cree avec newLevel -->
+		<div id="pageCustomLevel" class="page-cont page-game-menu page-faded-bg" style="display : none;">
+			<div class="fixed-75w-wrapper">
+				<h1 class="gm-menu-title">Custom Level</h1>
+				<div class="submit-info">
+					<span>Level ID: </span>
+					<input type="text" id="levelId" class="playerName"/>
+				</div>
+				<div id="customLevelError" class="gm-menu-subtitle"></div>
+				<button id="startCustomLevelBtn" class="gm-btn btn-blue" type="button" name="button">Démarrer la partie</button>
+				<button id="customLevelBackBtn" class="gm-btn" type="button" name="button">Back to menu</button>
 			</div>
 		</div>
 
@@ -288,7 +303,7 @@
 			</div>
 		</div>
 	</div>
-	<!-- Web3.js : appels au contrat MNS Coin via MetaMask -->
+	<!-- Web3.js : appels au contrat MNS Coin via le wallet du joueur -->
 	<script src="https://cdn.jsdelivr.net/npm/web3@4.16.0/dist/web3.min.js"
 		integrity="sha384-Ptk2PWqkZWMoP7ivsQOoijqfM5hQC4AgIEmQ+WUgk2OY5eNAmVLXunFrfpnZhmkb"
 		crossorigin="anonymous"></script>

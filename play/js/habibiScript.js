@@ -375,6 +375,11 @@ var circlesPosition = [
   { x:"374px", y:"162px",  timeSpawn:null, timeDespawn:null}
 ]
 
+// Positions par defaut, remises a chaque "New Game" (un niveau custom les remplace)
+var defaultCirclesPosition = circlesPosition;
+// Niveau de la partie en cours, enregistre avec le score ("default" pour une partie normale)
+var currentLevelId = "default";
+
 // ----------------------------------------------------------------- //
 // ---------------- End of / Tappable Circle Object ---------------- //
 // ----------------------------------------------------------------- //
@@ -667,10 +672,10 @@ abtPageBackBtn.addEventListener('click', function() {
 }, false);
 
 /*****************************************************************************************************************************/
-/*  MetaMask session  *******************************************************************************************************/
+/*  Wallet session ***********************************************************************************************************/
 /*****************************************************************************************************************************/
 // Contrat MNS Coin (mint public) deploye et verifie sur Polygon Amoy
-const TOKEN_ADDRESS = "0x9Ac5630FB370888ff78A877be33bcCa5e1433DDB";
+const TOKEN_ADDRESS = "0xBE21be9Bc535f4F53217343aE7e13FBF729e74b9";
 const AMOY_CHAIN_ID = 80002;
 
 // Adresse du joueur pour la session en cours (null tant qu'il n'est pas connecte)
@@ -693,11 +698,11 @@ function setPlayerAddress(accounts)
   }
 }
 
-// Ouvre la popup MetaMask pour que le joueur autorise le site
+// Ouvre la popup du wallet pour que le joueur autorise le site
 async function connectWallet()
 {
   if (typeof window.ethereum === "undefined") {
-    $("#walletStatus").text("MetaMask not installed");
+    $("#walletStatus").text("No wallet installed");
     return null;
   }
   try {
@@ -705,7 +710,7 @@ async function connectWallet()
     setPlayerAddress(accounts);
   } catch (e) {
     // refus du joueur dans la popup (code 4001) ou autre erreur
-    console.error("MetaMask connection refused", e);
+    console.error("Wallet connection refused", e);
   }
   return playerAddress;
 }
@@ -714,7 +719,7 @@ async function connectWallet()
 async function initWallet()
 {
   if (typeof window.ethereum === "undefined") {
-    $("#walletStatus").text("MetaMask not installed");
+    $("#walletStatus").text("No wallet installed");
     $("#connectWalletBtn").hide();
     return;
   }
@@ -739,7 +744,7 @@ const MINT_ABI = [{
 }];
 
 // Amoy refuse les transactions dont le pourboire est sous 25 gwei,
-// et MetaMask propose parfois moins : on fixe les frais nous-memes.
+// et les wallets proposent parfois moins : on fixe les frais nous-memes.
 const AMOY_PRIORITY_FEE_GWEI = "35";
 const AMOY_MAX_FEE_GWEI = "50";
 
@@ -749,7 +754,7 @@ function getWeb3Constructor()
   return window.Web3 && window.Web3.Web3 ? window.Web3.Web3 : window.Web3;
 }
 
-// Bascule MetaMask sur Amoy si le joueur est sur un autre reseau
+// Bascule le wallet sur Amoy si le joueur est sur un autre reseau
 async function ensureAmoy()
 {
   const chainId = await window.ethereum.request({ method: "eth_chainId" });
@@ -761,19 +766,15 @@ async function ensureAmoy()
   }
 }
 
-// Mint `score` MNS vers l'adresse MetaMask du joueur
+// Mint `score` MNS vers l'adresse du wallet du joueur
 async function mintScore(score)
 {
-  if (score <= 0) {
-    $("#mintStatus").text("Score 0 : nothing to mint");
-    return;
-  }
   if (!playerAddress && !(await connectWallet())) {
-    $("#mintStatus").text("Connect MetaMask to mint your score");
+    $("#mintStatus").text("Connect your wallet to mint your score");
     return;
   }
   try {
-    $("#mintStatus").text("Confirm the mint in MetaMask...");
+    $("#mintStatus").text("Confirm the mint in your wallet...");
     await ensureAmoy();
 
     const Web3Ctor = getWeb3Constructor();
@@ -804,10 +805,12 @@ async function mintScore(score)
 // -- New Game Button
 newGameBtn.addEventListener('click', async function() {
   audioPool.playSound(buttonTap);
-  // pas d'adresse : on demande d'abord la connexion MetaMask
+  // pas d'adresse : on demande d'abord la connexion du wallet
   if (!playerAddress && !(await connectWallet())) {
     return;
   }
+  circlesPosition = defaultCirclesPosition;
+  currentLevelId = "default";
   toolsBox.showPage(pageTutorial);
   toolsBox.hidePage(pageGameMenu);
 }, false);
@@ -869,7 +872,8 @@ $("#sbmt-score").click(async function(){
       body: JSON.stringify({
         player: playerName,
         score: gameEngine.score,
-        circleTime: clickedCirclesTime
+        circleTime: clickedCirclesTime,
+        levelId: currentLevelId
       })
     });
     if (!res.ok) {
@@ -908,11 +912,11 @@ $("#backtomenu").click(function(){
 /*****************************************************************************************************************************/
 /*  Classement : transactions du token MNS Coin sur Polygon Amoy  ***********************************************************/
 /*****************************************************************************************************************************/
-// RPC public en lecture seule : le classement s'affiche meme sans MetaMask
+// RPC public en lecture seule : le classement s'affiche meme sans wallet
 const AMOY_READ_RPC = "https://polygon-amoy-bor-rpc.publicnode.com";
 
 // Bloc du deploiement : il contient le mint initial de 44 444 MNS, qu'on masque
-const TOKEN_DEPLOY_BLOCK = 48436400;
+const TOKEN_DEPLOY_BLOCK = 48513229;
 
 // Ce RPC refuse les requetes eth_getLogs de plus de 10 000 blocs
 const LOGS_BLOCK_RANGE = 10000;
@@ -957,7 +961,19 @@ async function GetTokenTransactions()
       events = events.concat(chunk);
     }
 
-    // Classement : plus gros montant d'abord, 50 premiers
+    // Chaque mint du jeu cree 3 Transfer dans la meme transaction : le score du joueur
+    // en premier, puis 10 MNS pour l'auteur et 5 MNS pour le leader.
+    // On ne garde que le premier de chaque transaction : le score.
+    const scoreByTx = {};
+    events.forEach(ev => {
+      const previous = scoreByTx[ev.transactionHash];
+      if (!previous || Number(ev.logIndex) < Number(previous.logIndex)) {
+        scoreByTx[ev.transactionHash] = ev;
+      }
+    });
+    events = Object.values(scoreByTx);
+
+    // Classement : meilleur score d'abord, 50 premiers
     events.sort((a, b) => {
       const va = BigInt(a.returnValues.value);
       const vb = BigInt(b.returnValues.value);
@@ -1042,3 +1058,74 @@ $(document).on("click", ".highscoreitem", async function(){
 $(document).ready(async function(){
   await GetTokenTransactions();
 })
+
+/*****************************************************************************************************************************/
+/*  Niveaux personnalises (bonus) : niveaux crees avec newLevel dans le contrat  ********************************************/
+/*****************************************************************************************************************************/
+const GET_LEVEL_ABI = [{
+  inputs: [{ name: "levelId", type: "string" }],
+  name: "getLevel",
+  outputs: [{
+    name: "",
+    type: "tuple[]",
+    components: [{ name: "x", type: "uint256" }, { name: "y", type: "uint256" }]
+  }],
+  stateMutability: "view",
+  type: "function"
+}];
+
+$("#customLevelBtn").click(function(){
+  $("#customLevelError").text("");
+  $("#pageGameMenu").hide();
+  $("#pageCustomLevel").show();
+});
+
+$("#customLevelBackBtn").click(function(){
+  $("#pageCustomLevel").hide();
+  $("#pageGameMenu").show();
+});
+
+$("#startCustomLevelBtn").click(async function(){
+  const levelId = $("#levelId").val().trim();
+  if (levelId === "") {
+    $("#customLevelError").text("Enter a level ID");
+    return;
+  }
+
+  // Lecture du niveau via le RPC public (pas besoin du wallet)
+  $("#customLevelError").text("Loading level...");
+  let positions;
+  try {
+    const Web3Ctor = getWeb3Constructor();
+    const web3 = new Web3Ctor(AMOY_READ_RPC);
+    const token = new web3.eth.Contract(GET_LEVEL_ABI, TOKEN_ADDRESS);
+    positions = await token.methods.getLevel(levelId).call();
+  } catch (e) {
+    console.error("Error loading level", e);
+    $("#customLevelError").text("Unable to load the level");
+    return;
+  }
+  if (positions.length === 0) {
+    $("#customLevelError").text("Level not found");
+    return;
+  }
+
+  // pas d'adresse : on demande d'abord la connexion du wallet, comme pour New Game
+  if (!playerAddress && !(await connectWallet())) {
+    $("#customLevelError").text("Connect your wallet to play");
+    return;
+  }
+
+  // Le jeu prend une nouvelle position a chaque cercle (autant que la liste par defaut) :
+  // on repete les positions du niveau pour remplir la liste
+  circlesPosition = [];
+  for (let i = 0; i < defaultCirclesPosition.length; i++) {
+    const position = positions[i % positions.length];
+    circlesPosition.push({ x: Number(position.x) + "px", y: Number(position.y) + "px", timeSpawn: null, timeDespawn: null });
+  }
+  currentLevelId = levelId;
+
+  $("#customLevelError").text("");
+  $("#pageCustomLevel").hide();
+  toolsBox.showPage(pageTutorial);
+});
