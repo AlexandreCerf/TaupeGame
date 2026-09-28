@@ -430,6 +430,7 @@ var gameEngine = {
       gameEngine.score = amount;
       gmStatsScore.innerHTML = gameEngine.score;
     }
+    renderKingBar(); // Beat the king : progression vers le record
   },
   lostLife: function()
   {
@@ -517,8 +518,11 @@ var gameEngine = {
   },
 
   gameLost: function() {
-    audioPool.playSound(levelLost);
+    // Beat the king : record depasse -> son de victoire plutot que de defaite
+    var newKing = hasBeatenKing(gameEngine.score);
+    audioPool.playSound(newKing ? levelPassed : levelLost);
     gameOverScore.innerHTML = gameEngine.score;
+    renderNewKing(newKing);
     toolsBox.hidePage(pagePlayArea);
     toolsBox.showPage(pageYouLost);
     gameEngine.stop();
@@ -1238,3 +1242,84 @@ function renderKingMenu()
 
 // Premiere lecture au chargement de la page
 fetchKingState().then(renderKingMenu);
+
+/*****************************************************************************************************************************/
+/*  Beat the king : affichage (barre en jeu + ecran nouveau roi)  ************************************************************/
+/*****************************************************************************************************************************/
+// Ce script est charge en fin de <body> : le DOM est deja construit.
+var kingBar = document.querySelector('#kingBar');
+var kingBarFill = document.querySelector('#kingBarFill');
+var kingBarLabel = document.querySelector('#kingBarLabel');
+
+// Masque la barre (cas degrades). Elle est en overlay, la zone de jeu
+// garde donc sa hauteur dans tous les cas.
+function setKingBarVisible(visible)
+{
+  kingBar.style.display = visible ? "" : "none";
+}
+
+// Barre de progression vers le record, rafraichie a chaque changement de score.
+function renderKingBar()
+{
+  if (!kingBar) { // page sans la zone de jeu
+    return;
+  }
+  // Cas degrades : RPC injoignable, ou personne n'a encore marque -> rien a viser
+  if (!kingStateLoaded || !kingLeader || kingBestScore <= 0) {
+    setKingBarVisible(false);
+    return;
+  }
+  setKingBarVisible(true);
+
+  var score = gameEngine.score;
+  var playerIsKing = isPlayerKing();
+
+  kingBarFill.style.width = (kingProgress(score) * 100) + "%";
+  // Le joueur detient deja le record : la barre devient dorree, son propre
+  // score est la cible que les autres doivent depasser.
+  kingBar.classList.toggle('is-king', playerIsKing);
+  kingBar.classList.toggle('is-beaten', hasBeatenKing(score));
+
+  if (playerIsKing) {
+    kingBarLabel.innerHTML = "Your record: " + kingBestScore + " — you: " + score;
+  } else if (hasBeatenKing(score)) {
+    kingBarLabel.innerHTML = "Record beaten: " + score + " > " + kingBestScore;
+  } else {
+    kingBarLabel.innerHTML = "King: " + kingBestScore + " — you: " + score;
+  }
+}
+
+// Ecran de fin de partie quand le score depasse le record.
+// Le contrat ne met a jour `leader` que dans mint() : battre le record a l'ecran
+// ne change rien on-chain, d'ou l'insistance sur "Submit score".
+function renderNewKing(isNewKing)
+{
+  // On remet d'abord l'ecran dans son etat de defaite : gameOver() et la fin
+  // du chrono peuvent l'avoir laisse en icone bug ou montre.
+  lvlLostIcon.classList.remove('king-icon');
+  lvlLostIcon.innerHTML = '';
+  pageYouLost.classList.remove('grn-grdnt-bg');
+  pageYouLost.classList.add('rd-grdnt-bg');
+  if (!isNewKing) {
+    return;
+  }
+  // La partie est perdue mais le record tombe : couronne et fond vert
+  // plutot que l'icone bug et le degrade rouge, qui contrediraient l'annonce.
+  lvlLostTtl.innerHTML = '<i class="fas fa-crown"></i> New king!';
+  lvlLostIcon.classList.add('king-icon');
+  lvlLostIcon.innerHTML = '<i class="fas fa-crown"></i>';
+  pageYouLost.classList.remove('rd-grdnt-bg');
+  pageYouLost.classList.add('grn-grdnt-bg');
+  // Sans detenteur, le contrat compare a bestScore = 0 : le premier mint
+  // positif prend la couronne, il n'y a pas de "record" a annoncer.
+  var passed = kingLeader
+    ? 'You passed the record of ' + kingBestScore + ' pts held by '
+      + shortAddress(kingLeader) + '.'
+    : 'Nobody has scored yet — the crown is still open.';
+  // Un <span> plutot qu'une classe sur #mintStatus : les messages de mint
+  // remplacent le contenu et effacent donc le style avec lui.
+  $("#mintStatus").html('<span class="new-king-msg">' + passed
+    + '<br>Nothing is on-chain yet — hit <b>Submit score</b> to take the crown.'
+    + '<br>While you keep it, you earn 5 MNS every time another player mints.'
+    + '</span>');
+}
