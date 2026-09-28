@@ -1021,3 +1021,95 @@ _:-ms-lang(x), .rolldown-list li {
 _:-ms-lang(x), #highscoreList {
   max-height: 39vh; 
 }
+/* ------------------------------------------------ */
+/*   Beat the king : progression vers le record     */
+/* ------------------------------------------------ */
+
+.king-bar-cont {
+  width: 90%;
+  height: 34px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* La barre prend ses 34px sur la zone de jeu. Masquee (RPC injoignable ou
+   aucun record), elle les rend a #gameSpace via .king-bar-hidden. */
+.game-space {
+  height: calc(90% - 34px);
+}
+
+.page-play-area.king-bar-hidden .game-space {
+  height: 90%;
+}
+
+.king-bar-label {
+  width: 100%;
+  font-size: 1.2rem;
+  color: #58D1FF;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.king-bar-track {
+  width: 100%;
+  height: 6px;
+  margin-top: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+/* Meme bleu et meme transition que la barre de temps du jeu */
+.king-bar-fill {
+  width: 0;
+  height: 100%;
+  background: #58D1FF;
+  border-radius: 3px;
+  transition: width ease 0.2s;
+}
+
+/* Le joueur detient le record : couronne doree, son score est la cible.
+   all.min.css est charge APRES style.css et sa regle .fas{display:inline-block}
+   gagnerait a specificite egale : on qualifie par .king-bar-cont. */
+.king-bar-cont .king-bar-crown {
+  display: none;
+  margin-right: 0.5rem;
+  color: #FFC53D;
+}
+
+.king-bar-cont.is-king .king-bar-crown {
+  display: inline-block;
+}
+
+.king-bar-cont.is-king .king-bar-label {
+  color: #FFC53D;
+}
+
+.king-bar-cont.is-king .king-bar-fill {
+  background: #FFC53D;
+}
+
+/* Record depasse pendant la partie */
+.king-bar-cont.is-beaten .king-bar-fill {
+  background: #FFC53D;
+  animation: king-bar-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes king-bar-pulse {
+  from { opacity: 0.6; }
+  to   { opacity: 1; }
+}
+
+/*   Ecran nouveau roi   */
+#lvlLostTtl .fa-crown {
+  margin-right: 0.5rem;
+  color: #FFC53D;
+}
+
+.new-king-msg {
+  display: block;
+  font-size: 1.4rem;
+  line-height: 2rem;
+  color: #FFC53D;
+}
