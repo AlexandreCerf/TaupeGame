@@ -1251,11 +1251,11 @@ var kingBar = document.querySelector('#kingBar');
 var kingBarFill = document.querySelector('#kingBarFill');
 var kingBarLabel = document.querySelector('#kingBarLabel');
 
-// Masque la barre et rend sa hauteur a la zone de jeu (cas degrades).
+// Masque la barre (cas degrades). Elle est en overlay, la zone de jeu
+// garde donc sa hauteur dans tous les cas.
 function setKingBarVisible(visible)
 {
   kingBar.style.display = visible ? "" : "none";
-  pagePlayArea.classList.toggle('king-bar-hidden', !visible);
 }
 
 // Barre de progression vers le record, rafraichie a chaque changement de score.
@@ -1294,10 +1294,22 @@ function renderKingBar()
 // ne change rien on-chain, d'ou l'insistance sur "Submit score".
 function renderNewKing(isNewKing)
 {
+  // On remet d'abord l'ecran dans son etat de defaite : gameOver() et la fin
+  // du chrono peuvent l'avoir laisse en icone bug ou montre.
+  lvlLostIcon.classList.remove('king-icon');
+  lvlLostIcon.innerHTML = '';
+  pageYouLost.classList.remove('grn-grdnt-bg');
+  pageYouLost.classList.add('rd-grdnt-bg');
   if (!isNewKing) {
     return;
   }
+  // La partie est perdue mais le record tombe : couronne et fond vert
+  // plutot que l'icone bug et le degrade rouge, qui contrediraient l'annonce.
   lvlLostTtl.innerHTML = '<i class="fas fa-crown"></i> New king!';
+  lvlLostIcon.classList.add('king-icon');
+  lvlLostIcon.innerHTML = '<i class="fas fa-crown"></i>';
+  pageYouLost.classList.remove('rd-grdnt-bg');
+  pageYouLost.classList.add('grn-grdnt-bg');
   // Sans detenteur, le contrat compare a bestScore = 0 : le premier mint
   // positif prend la couronne, il n'y a pas de "record" a annoncer.
   var passed = kingLeader

@@ -1025,21 +1025,19 @@ _:-ms-lang(x), #highscoreList {
 /*   Beat the king : progression vers le record     */
 /* ------------------------------------------------ */
 
+/* En overlay sur le haut de la zone de jeu : .page-play-area est en
+   position absolute et sert de bloc conteneur. La barre ne prend aucune
+   hauteur au flux, donc .game-space garde ses 90% et les cercles du bas
+   (y max 527px + 44px) ne sont pas rognes. Le cercle le plus haut est a
+   y:44px, sous les 34px de la barre ; pointer-events evite malgre tout
+   d'intercepter un tap. */
 .king-bar-cont {
+  position: absolute;
+  top: 10%;
+  left: 5%;
   width: 90%;
   height: 34px;
-  margin: 0 auto;
-  position: relative;
-}
-
-/* La barre prend ses 34px sur la zone de jeu. Masquee (RPC injoignable ou
-   aucun record), elle les rend a #gameSpace via .king-bar-hidden. */
-.game-space {
-  height: calc(90% - 34px);
-}
-
-.page-play-area.king-bar-hidden .game-space {
-  height: 90%;
+  pointer-events: none;
 }
 
 .king-bar-label {
@@ -1102,6 +1100,15 @@ _:-ms-lang(x), #highscoreList {
 }
 
 /*   Ecran nouveau roi   */
+/* Remplace l'icone bug : plus specifique que .you-lost-icon, dont
+   l'image de fond est donc neutralisee. */
+.info-screen-icon.king-icon {
+  background: none;
+  font-size: 44px;
+  line-height: 48px;
+  color: #FFC53D;
+}
+
 #lvlLostTtl .fa-crown {
   margin-right: 0.5rem;
   color: #FFC53D;
