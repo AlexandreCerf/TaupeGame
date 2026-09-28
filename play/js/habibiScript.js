@@ -696,6 +696,8 @@ function setPlayerAddress(accounts)
     $("#walletStatus").text("Not connected");
     $("#connectWalletBtn").show();
   }
+  // le statut "You are the king" depend du compte connecte
+  renderKingMenu();
 }
 
 // Ouvre la popup du wallet pour que le joueur autorise le site
@@ -795,6 +797,10 @@ async function mintScore(score)
       });
 
     $("#mintStatus").text(score + " MNS minted ✅ tx " + receipt.transactionHash.slice(0, 10) + "...");
+
+    // Le mint vient peut-etre de battre le record : on le relit pour le menu
+    await fetchKingState();
+    renderKingMenu();
   } catch (e) {
     console.error("Mint failed", e);
     $("#mintStatus").text("Mint failed : " + (e && e.message ? e.message : e));
@@ -912,14 +918,17 @@ $("#backtomenu").click(function(){
 /*****************************************************************************************************************************/
 /*  Classement : transactions du token MNS Coin sur Polygon Amoy  ***********************************************************/
 /*****************************************************************************************************************************/
-// RPC public en lecture seule : le classement s'affiche meme sans wallet
-const AMOY_READ_RPC = "https://polygon-amoy-bor-rpc.publicnode.com";
+// RPC public en lecture seule : le classement s'affiche meme sans wallet.
+// publicnode a elague son historique et repond -32701 "History has been pruned"
+// sur les logs du bloc de deploiement : il ne sert plus pour le classement.
+const AMOY_READ_RPC = "https://polygon-amoy.gateway.tenderly.co";
 
 // Bloc du deploiement : il contient le mint initial de 44 444 MNS, qu'on masque
 const TOKEN_DEPLOY_BLOCK = 48513229;
 
-// Ce RPC refuse les requetes eth_getLogs de plus de 10 000 blocs
-const LOGS_BLOCK_RANGE = 10000;
+// Tenderly accepte tout l'historique en une seule requete, mais limite le nombre
+// d'appels : on prend une tranche assez large pour ne faire qu'un tour de boucle.
+const LOGS_BLOCK_RANGE = 1000000;
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -1129,3 +1138,103 @@ $("#startCustomLevelBtn").click(async function(){
   $("#pageCustomLevel").hide();
   toolsBox.showPage(pageTutorial);
 });
+
+/*****************************************************************************************************************************/
+/*  Beat the king : le record on-chain (leader / bestScore du contrat)  *****************************************************/
+/*****************************************************************************************************************************/
+// `leader` et `bestScore` sont des variables publiques du contrat : Solidity genere
+// un getter pour chacune, on peut donc les lire sans rien redeployer.
+const KING_ABI = [
+  {
+    inputs: [],
+    name: "leader",
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function"
+  },
+  {
+    inputs: [],
+    name: "bestScore",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function"
+  }
+];
+
+// Etat du record, rafraichi par fetchKingState()
+let kingLeader = null;        // detenteur du record (null si personne n'a encore marque)
+let kingBestScore = 0;        // record exprime en points
+let kingStateLoaded = false;  // false tant que la lecture n'a pas abouti
+let kingStatePending = false; // une lecture est en cours (affichage "Loading...")
+
+// Lit le record sur la chaine. On passe par le RPC public en lecture seule
+// (le meme que le classement) : le record s'affiche donc sans wallet connecte.
+async function fetchKingState()
+{
+  kingStatePending = true;
+  try {
+    const Web3Ctor = getWeb3Constructor();
+    const web3 = new Web3Ctor(AMOY_READ_RPC);
+    const token = new web3.eth.Contract(KING_ABI, TOKEN_ADDRESS);
+
+    const [leaderAddress, bestScoreWei] = await Promise.all([
+      token.methods.leader().call(),
+      token.methods.bestScore().call()
+    ]);
+
+    // bestScore est un montant de jetons, pas un score : mintScore() mint
+    // toWei(score), donc un point vaut 10^18 unites.
+    kingBestScore = Number(BigInt(bestScoreWei) / (10n ** 18n));
+    kingLeader = leaderAddress === ZERO_ADDRESS ? null : leaderAddress;
+    kingStateLoaded = true;
+  } catch (e) {
+    // RPC injoignable : on laisse kingStateLoaded a false, l'affichage s'adapte
+    console.error("Unable to read the on-chain record", e);
+    kingStateLoaded = false;
+  }
+  kingStatePending = false;
+  return kingStateLoaded;
+}
+
+// Le score passe en parametre depasse-t-il le record ?
+function hasBeatenKing(score)
+{
+  return kingStateLoaded && score > kingBestScore;
+}
+
+// Le joueur connecte est-il deja le detenteur du record ?
+function isPlayerKing()
+{
+  return Boolean(playerAddress && kingLeader
+    && playerAddress.toLowerCase() === kingLeader.toLowerCase());
+}
+
+// Progression vers le record, entre 0 et 1. Vaut 1 des que le record est atteint,
+// et aussi tant qu'aucun record n'existe : il n'y a alors rien a rattraper.
+function kingProgress(score)
+{
+  if (!kingStateLoaded || kingBestScore <= 0) {
+    return 1;
+  }
+  return Math.min(score / kingBestScore, 1);
+}
+
+// Affichage du record sur le menu principal
+function renderKingMenu()
+{
+  const status = $("#kingMenuStatus");
+  if (kingStatePending) {
+    status.text("Loading record...");
+  } else if (!kingStateLoaded) {
+    status.text("Record unavailable");
+  } else if (!kingLeader) {
+    status.text("No record yet - the first game takes the crown");
+  } else if (isPlayerKing()) {
+    status.text("You are the king - " + kingBestScore + " pts");
+  } else {
+    status.text("King : " + shortAddress(kingLeader) + " - " + kingBestScore + " pts");
+  }
+}
+
+// Premiere lecture au chargement de la page
+fetchKingState().then(renderKingMenu);
